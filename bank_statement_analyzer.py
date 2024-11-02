@@ -1,14 +1,12 @@
 import tabula
 import tabula.io
 import pandas as pd
-from langchain_experimental.agents import create_csv_agent
-
-import os
-
-from huggingface_hub import login
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
-from transformers import AutoTokenizer
-import torch
+from langchain_experimental.agents import (
+    create_pandas_dataframe_agent,
+)
+from langchain_google_genai import ChatGoogleGenerativeAI
+import numpy as np
+import pandas as pd
 
 path = "/Users/mac/Desktop/bank-statement-analyzer/content/"
 
@@ -26,33 +24,36 @@ output = tabula.io.convert_into(
 df = pd.read_csv(path + "converted.csv")
 df.head()
 
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
 
-login(token="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")
+def clean_currency_column(column):
+    cleaned_column = (
+        df[column].str.replace("[^\d.-]", "", regex=True).replace("", 0.0).astype(float)
+    )
+    return cleaned_column
 
-tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.2-1B", padding_side="left"
-)
 
-model = HuggingFacePipeline.from_model_id(
-    model_id="meta-llama/Llama-3.2-1B",
-    task="text-generation",
-    device=-1,  # -1 for CPU
-    batch_size=2,  # adjust as needed based on GPU map and model size.
-    model_kwargs={
-        "temperature": 0,
-        "max_length": 4096,
-        "torch_dtype": torch.bfloat16,
-    },
-    pipeline_kwargs={"max_new_tokens": 1024},
+df["Withdrawal"] = clean_currency_column("Withdrawal")
+df["Deposit"] = clean_currency_column("Deposit")
+df["Balance"] = clean_currency_column("Balance")
+
+headers = df.columns
+df = df[~df.apply(lambda row: all(row == headers), axis=1)]
+
+date_pattern = r"^\d{2}-\d{2}-\d{4}$"
+df = df[df["Txn. Date"].str.match(date_pattern, na=False)]
+
+model = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash-latest",
+    temperature=0,
+    api_key="AIzaSyDqRUU7S9sVdgjVavXaXAXtYU5_2-QUGWA",
 )
 
 # ! pip install tabulate
-agent = create_csv_agent(
+agent_exec = create_pandas_dataframe_agent(
     model,
-    "/Users/mac/Desktop/bank-statement-analyzer/content/converted.csv",
+    df,
     verbose=True,
     allow_dangerous_code=True,
 )
 
-agent.run("how many rows are there?")
+agent_exec.run("How can I improve my spending ?")
