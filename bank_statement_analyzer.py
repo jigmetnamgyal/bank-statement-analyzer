@@ -48,12 +48,14 @@ model = ChatGoogleGenerativeAI(
     api_key="AIzaSyDqRUU7S9sVdgjVavXaXAXtYU5_2-QUGWA",
 )
 
+df_copy = df.copy()
+
 # ! pip install tabulate
 agent_exec = create_pandas_dataframe_agent(
     model,
-    df,
+    df_copy,
     verbose=True,
     allow_dangerous_code=True,
 )
 
-agent_exec.run("How can I improve my spending ?")
+agent_exec.run("Do I have more spending or deposit ?")
